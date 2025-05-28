@@ -1,0 +1,29 @@
+{
+  "name": "cali-model",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/discord.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cali-Development/cali-model.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Cali-Development/cali-model/issues"
+  },
+  "homepage": "https://github.com/Cali-Development/cali-model#readme",
+  "dependencies": {
+    "@discordjs/voice": "^0.18.0",
+    "discord.js": "^14.18.0",
+    "ffmpeg-static": "^5.2.0",
+    "fs": "^0.0.1-security",
+    "groq-sdk": "^0.19.0",
+    "prism-media": "^1.3.5"
+  }
+}
