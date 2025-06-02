@@ -1,0 +1,7 @@
+node_modules
+.gitignore
+.env
+package-lock.json
+data
+versions
+.gitignore
