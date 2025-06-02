@@ -548,14 +548,14 @@ class AgentManager {
         });
       }
 
-      // // Add context messages
-      // const contextMessages = await contextManager.getCurrentContextSummary();
-      // if (contextMessages.length > 0) {
-      //   messages.push({
-      //     role: 'system',
-      //     content: 'Context:\n' + contextMessages
-      //   });
-      // }
+      // Add context messages
+      const contextMessages = await contextManager.getCurrentContextSummary();
+      if (contextMessages.length > 0) {
+        messages.push({
+          role: 'system',
+          content: 'Context:\n' + contextMessages
+        });
+      }
 
       // Add full conversation history
       const conversationHistory = await contextManager.getFullContext();
