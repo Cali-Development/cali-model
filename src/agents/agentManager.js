@@ -352,94 +352,6 @@ class AgentManager {
   }
 
   /**
-   * Send a message from one agent to another
-   * @param {Message} messageData - Message data
-   * @returns {Promise<AgentMessage>} Sent message
-   */
-  async sendAgentMessage(messageData) {
-    try {
-      if (!this.initialized) {
-        await this.initialize();
-      }
-      
-      // Validate required fields
-      if (!messageData.content || !messageData.fromAgentId || !messageData.toAgentId) {
-        throw new Error('Message content, sender, and recipient are required');
-      }
-      
-      // Check if agents exist
-      const fromAgent = this.agents.get(messageData.fromAgentId);
-      const toAgent = this.agents.get(messageData.toAgentId);
-      
-      if (!fromAgent) {
-        throw new Error(`Sender agent with ID ${messageData.fromAgentId} not found`);
-      }
-      
-      if (!toAgent) {
-        throw new Error(`Recipient agent with ID ${messageData.toAgentId} not found`);
-      }
-      
-      // Create message instance
-      const message = new AgentMessage({
-        content: messageData.content,
-        fromAgentId: messageData.fromAgentId,
-        toAgentId: messageData.toAgentId,
-        type: messageData.type || 'message',
-        timestamp: new Date(),
-        metadata: messageData.metadata || {}
-      });
-      
-      // Store in message history
-      if (!this.messageHistory.has(messageData.fromAgentId)) {
-        this.messageHistory.set(messageData.fromAgentId, []);
-      }
-      if (!this.messageHistory.has(messageData.toAgentId)) {
-        this.messageHistory.set(messageData.toAgentId, []);
-      }
-      
-      this.messageHistory.get(messageData.fromAgentId).push(message);
-      this.messageHistory.get(messageData.toAgentId).push(message);
-      
-      // Add to context
-      await contextManager.addContextMessage({
-        content: `${fromAgent.name} to ${toAgent.name}: ${message.content}`,
-        role: 'assistant',
-        agentId: message.fromAgentId,
-        metadata: {
-          isAgentMessage: true,
-          toAgentId: message.toAgentId
-        }
-      });
-      
-      // Add to memory for both agents
-      await memoryManager.addMemory({
-        content: `You said to ${toAgent.name}: ${message.content}`,
-        agentId: message.fromAgentId,
-        tags: ['communication'],
-        keywords: [toAgent.name, 'message'],
-        metadata: { messageId: message.id, toAgentId: message.toAgentId }
-      });
-      
-      await memoryManager.addMemory({
-        content: `${fromAgent.name} said to you: ${message.content}`,
-        agentId: message.toAgentId,
-        tags: ['communication'],
-        keywords: [fromAgent.name, 'message'],
-        metadata: { messageId: message.id, fromAgentId: message.fromAgentId }
-      });
-      
-      // Emit event
-      this._emitEvent(AgentEventType.AGENT_MESSAGE_SENT, { message: message.toJSON() });
-      
-      console.log(`Message sent from ${fromAgent.name} to ${toAgent.name}`);
-      return message;
-    } catch (error) {
-      console.error('Failed to send agent message:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Generate a response from an agent to a message
    * @param {string} agentId - Agent ID
    * @param {Context} context - Context data
@@ -457,80 +369,21 @@ class AgentManager {
         throw new Error(`Agent with ID ${agentId} not found`);
       }
       
-      // Prepare the prompt
-      const systemPrompt = agent.getSystemPrompt();
+      // // Prepare the prompt
+      // const systemPrompt = agent.getSystemPrompt();
       
       // Prepare context messages
       const messages = [
-        { role: 'system', content: systemPrompt }
+        // { role: 'system', content: systemPrompt },
+        { role: 'system', content: 'Your agent id is: ' + agentId },
       ];
       
-      // Add time context
-      const timeDetails = timeManager.getTimeDetails();
-      messages.push({
-        role: 'system',
-        content: `The current time is ${timeDetails.inUniverse.formatted} (${timeDetails.inUniverse.timeOfDay}).`
-      });
-      
-      // Add location context
-      if (agent.locationId) {
-        messages.push({
-          role: 'system',
-          content: `You are currently at ${(await placeManager.getPlace(agent.locationId)).name || 'unknown place'}.`
-        });
-      }
-
-      // Add scenario context
-      const scenario = scenarioManager.getScenario();
-      if (scenario) {
-        messages.push({
-          role: 'system',
-          content: `The current scenario name is '${scenario.name}'.`
-        });
-
-        messages.push({
-          role: 'system',
-          content: `The current scenario description is '${scenario.description}'.`
-        });
-      }
-
-      // Add avaliable actions context
-      const actions = actionManager.getAllActions();
-      if (actions.length > 0) {
-        messages.push({
-          role: 'system',
-          content: `The following actions are available: ${actions.map(action => action.name).join(', ')}`
-        });
-
-        messages.push({
-          role: 'system',
-          content: `You can get action parameters & argument details by typing: action-getdetails <action name>`
-        })
-
-        messages.push({
-          role: 'system',
-          content: `You can execute actions by typing: action-execute <action name> <JSON>`
-        })
-
-        messages.push({
-          role: 'system',
-          content: `If you've executed an action, the system will return the result of the action.`
-        })
-      }
-
-      // Add agents (characters) information
-      const agents = this.agents.values();
-      if (agents.length > 0) {
-        messages.push({
-          role: 'system',
-          content: `The following agents are available: \n${agents.map(agent => '- ' + agent.name + ' (ID: ' + agent.id + ')').join('\n')}`
-        });
-
-        messages.push({
-          role: 'system',
-          content: `You can get agent details by typing: agent-getdetails <agent id>`
-        })
-      }
+      // // Add time context
+      // const timeDetails = timeManager.getTimeDetails();
+      // messages.push({
+      //   role: 'system',
+      //   content: `The current time is ${timeDetails.inUniverse.formatted} (${timeDetails.inUniverse.timeOfDay}).`
+      // });
       
       // Add relevant memories
       const relevantMemories = await memoryManager.getRelevantMemories({
@@ -562,7 +415,7 @@ class AgentManager {
       if (conversationHistory.length > 0) {
         messages.push({
           role: 'system',
-          content: 'Conversation history:\n' + conversationHistory
+          content: 'Conversation history:\n' + conversationHistory.map(msg => `${msg.role}: ${msg.content}`).join('\n')
         });
       }
       
@@ -624,7 +477,7 @@ class AgentManager {
   
       const followUp = await this.groq.chat.completions.create({
         messages: [
-          ...messages.filter(msg => msg.role !== 'user'),
+          ...messages/**.filter(msg => msg.role !== 'user')*/,
           { role: 'system', content: `✅ Action executed:\n${JSON.stringify(result, null, 2)}` },
           { role: 'system', content: 'Continue the conversation.' },
         ],

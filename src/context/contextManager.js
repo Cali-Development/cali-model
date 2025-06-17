@@ -194,7 +194,7 @@ class ContextManager {
       console.log("Context Manager initialized");
       
       // Set up cache cleanup interval
-      setInterval(() => this._cleanupCache(), this.cacheTimeout);
+      setInterval(() => this._cleanupCache(), 3000);
     } catch (error) {
       console.error("Failed to initialize Context Manager:", error);
       throw error;

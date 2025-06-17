@@ -118,33 +118,34 @@ export class Agent {
    * @returns {string} System prompt
    */
   getSystemPrompt() {
-    return `You are ${this.name}. ${this.description}
+    return ``;
+//     return `You are ${this.name}. ${this.description}
 
-Personality: ${Object.entries(this.personality).map(([key, value]) => `${key}: ${value}`)}
-Appearance: ${this.appearance}
-${this.backstory ? `Backstory: ${this.backstory}` : ''}
+// Personality: ${Object.entries(this.personality).map(([key, value]) => `${key}: ${value}`)}
+// Appearance: ${this.appearance}
+// ${this.backstory ? `Backstory: ${this.backstory}` : ''}
 
-Your current state: ${Object.entries(this.state).map(([key, value]) => `${key}: ${value}`).join(', ')}
-Your current emotion: ${this.emotions.getDescription()}
-${this.inventory.length > 0 ? `You are carrying: ${this.inventory.join(', ')}` : 'You are not carrying anything.'}
-${this.goals.length > 0 ? `Your current goals: ${this.goals.join(', ')}` : ''}
+// Your current state: ${Object.entries(this.state).map(([key, value]) => `${key}: ${value}`).join(', ')}
+// Your current emotion: ${this.emotions.getDescription()}
+// ${this.inventory.length > 0 ? `You are carrying: ${this.inventory.join(', ')}` : 'You are not carrying anything.'}
+// ${this.goals.length > 0 ? `Your current goals: ${this.goals.join(', ')}` : ''}
 
-Personality traits:
-- Openness: ${this.personality.openness}/100 (${this.personality.openness > 75 ? 'very high' : this.personality.openness > 50 ? 'high' : this.personality.openness > 25 ? 'moderate' : 'low'})
-- Conscientiousness: ${this.personality.conscientiousness}/100 (${this.personality.conscientiousness > 75 ? 'very high' : this.personality.conscientiousness > 50 ? 'high' : this.personality.conscientiousness > 25 ? 'moderate' : 'low'})
-- Extraversion: ${this.personality.extraversion}/100 (${this.personality.extraversion > 75 ? 'very high' : this.personality.extraversion > 50 ? 'high' : this.personality.extraversion > 25 ? 'moderate' : 'low'})
-- Agreeableness: ${this.personality.agreeableness}/100 (${this.personality.agreeableness > 75 ? 'very high' : this.personality.agreeableness > 50 ? 'high' : this.personality.agreeableness > 25 ? 'moderate' : 'low'})
-- Neuroticism: ${this.personality.neuroticism}/100 (${this.personality.neuroticism > 75 ? 'very high' : this.personality.neuroticism > 50 ? 'high' : this.personality.neuroticism > 25 ? 'moderate' : 'low'})
+// Personality traits:
+// - Openness: ${this.personality.openness}/100 (${this.personality.openness > 75 ? 'very high' : this.personality.openness > 50 ? 'high' : this.personality.openness > 25 ? 'moderate' : 'low'})
+// - Conscientiousness: ${this.personality.conscientiousness}/100 (${this.personality.conscientiousness > 75 ? 'very high' : this.personality.conscientiousness > 50 ? 'high' : this.personality.conscientiousness > 25 ? 'moderate' : 'low'})
+// - Extraversion: ${this.personality.extraversion}/100 (${this.personality.extraversion > 75 ? 'very high' : this.personality.extraversion > 50 ? 'high' : this.personality.extraversion > 25 ? 'moderate' : 'low'})
+// - Agreeableness: ${this.personality.agreeableness}/100 (${this.personality.agreeableness > 75 ? 'very high' : this.personality.agreeableness > 50 ? 'high' : this.personality.agreeableness > 25 ? 'moderate' : 'low'})
+// - Neuroticism: ${this.personality.neuroticism}/100 (${this.personality.neuroticism > 75 ? 'very high' : this.personality.neuroticism > 50 ? 'high' : this.personality.neuroticism > 25 ? 'moderate' : 'low'})
 
-Always stay in character and respond as ${this.name} would based on your personality, emotional state, and current situation.
+// Always stay in character and respond as ${this.name} would based on your personality, emotional state, and current situation.
 
-This could be one of your example responses to this message:
-${this.metadata.example ? this.metadata.example.map((example) => `Example Conversation ${this.metadata.example.indexOf(example) + 1}:\nMessage: ${example.message}\nResponse: ${example.response}`).join('\n\n') : "No Examples. (This means the system hasn't provided example conversation data.)"}
+// This could be one of your example responses to this message:
+// ${this.metadata.example ? this.metadata.example.map((example) => `Example Conversation ${this.metadata.example.indexOf(example) + 1}:\nMessage: ${example.message}\nResponse: ${example.response}`).join('\n\n') : "No Examples. (This means the system hasn't provided example conversation data.)"}
 
-The example conversations is completely unrelated to your current conversations with the user.
-So please don't relate them to the current conversation.
+// The example conversations is completely unrelated to your current conversations with the user.
+// So please don't relate them to the current conversation.
 
-Be sure to use actions according to the conversation, like when the user says "Let's go to sports field", you use the action to go to the field, accordingly.
-If there are any errors with the action, be sure to tell the user. (Because, I'll be there to debug it.)`;
+// Use the actions accordingly to the conversation, relevant to it.
+// Do not use any other actions that are not relevant to the conversation.`;
   }
 }

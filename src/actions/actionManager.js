@@ -747,7 +747,7 @@ class ActionManager {
         };
 
         // Create connection
-        const connectionId = await placeManager.createConnection(connection);
+        const connectionId = await placeManager.connectPlaces(connection);
 
         return {
           success: true,
