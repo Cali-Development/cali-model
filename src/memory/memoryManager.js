@@ -18,9 +18,8 @@ class Memory {
    * @param {Object} params - Memory parameters
    * @param {string} params.id - Unique identifier
    * @param {string} params.content - Memory content
-   * @param {string} params.agentId - ID of the agent who owns this memory
+   * @param {string} params.conversationId - ID of the conversation this memory belongs to
    * @param {Date} params.createdAt - Real-world creation timestamp
-   * @param {Date} params.inUniverseDate - In-universe timestamp
    * @param {string[]} params.tags - Array of tags
    * @param {string[]} params.keywords - Array of keywords
    * @param {string[]} params.relatedTo - Array of related memory IDs
@@ -29,9 +28,8 @@ class Memory {
   constructor({
     id = uuidv4(),
     content,
-    agentId,
+    conversationId,
     createdAt = new Date(),
-    inUniverseDate = new Date(),
     tags = [],
     keywords = [],
     relatedTo = [],
@@ -39,9 +37,8 @@ class Memory {
   }) {
     this.id = id;
     this.content = content;
-    this.agentId = agentId;
+    this.conversationId = conversationId;
     this.createdAt = createdAt;
-    this.inUniverseDate = inUniverseDate;
     this.tags = tags;
     this.keywords = keywords;
     this.relatedTo = relatedTo;
@@ -56,9 +53,8 @@ class Memory {
     return {
       id: this.id,
       content: this.content,
-      agentId: this.agentId,
+      conversationId: this.conversationId,
       createdAt: this.createdAt.toISOString(),
-      inUniverseDate: this.inUniverseDate.toISOString(),
       tags: this.tags,
       keywords: this.keywords,
       relatedTo: this.relatedTo,
@@ -75,9 +71,8 @@ class Memory {
     return new Memory({
       id: json.id,
       content: json.content,
-      agentId: json.agentId,
+      conversationId: json.conversationId,
       createdAt: new Date(json.createdAt),
-      inUniverseDate: new Date(json.inUniverseDate),
       tags: json.tags,
       keywords: json.keywords,
       relatedTo: json.relatedTo,
@@ -95,7 +90,7 @@ class MemoryManager {
    */
   constructor() {
     this.dbPath = config.database.path;
-    this.maxMemoriesPerAgent = config.memory.maxMemoriesPerAgent;
+    this.maxMemoriesPerConversation = config.memory.maxMemoriesPerConversation;
     this.maxGlobalMemories = config.memory.maxGlobalMemories;
     this.relevanceThreshold = config.memory.relevanceThreshold;
     this.db = null;
@@ -144,9 +139,8 @@ class MemoryManager {
       CREATE TABLE IF NOT EXISTS memories (
         id TEXT PRIMARY KEY,
         content TEXT NOT NULL,
-        agent_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
         created_at TEXT NOT NULL,
-        in_universe_date TEXT NOT NULL,
         metadata TEXT
       )
     `);
@@ -184,9 +178,8 @@ class MemoryManager {
 
     // Create indexes for performance
     this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_memories_agent_id ON memories(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_memories_conversation_id ON memories(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
-      CREATE INDEX IF NOT EXISTS idx_memories_in_universe_date ON memories(in_universe_date);
       CREATE INDEX IF NOT EXISTS idx_memory_tags_tag ON memory_tags(tag);
       CREATE INDEX IF NOT EXISTS idx_memory_keywords_keyword ON memory_keywords(keyword);
     `);
@@ -196,8 +189,7 @@ class MemoryManager {
    * Add a new memory
    * @param {Object} memoryData - Memory data
    * @param {string} memoryData.content - Memory content
-   * @param {string} memoryData.agentId - ID of the agent who owns this memory
-   * @param {Date} [memoryData.inUniverseDate] - In-universe timestamp
+   * @param {string} memoryData.conversationId - ID of the conversation this memory belongs to
    * @param {string[]} [memoryData.tags] - Array of tags
    * @param {string[]} [memoryData.keywords] - Array of keywords
    * @param {string[]} [memoryData.relatedTo] - Array of related memory IDs
@@ -206,8 +198,7 @@ class MemoryManager {
    */
   async addMemory({
     content,
-    agentId,
-    inUniverseDate = new Date(),
+    conversationId,
     tags = [],
     keywords = [],
     relatedTo = [],
@@ -218,15 +209,14 @@ class MemoryManager {
         await this.initialize();
       }
 
-      if (!content || !agentId) {
-        throw new Error('Memory content and agentId are required');
+      if (!content || !conversationId) {
+        throw new Error('Memory content and conversationId are required');
       }
 
       // Create memory instance
       const memory = new Memory({
         content,
-        agentId,
-        inUniverseDate,
+        conversationId,
         tags,
         keywords,
         relatedTo,
@@ -235,8 +225,8 @@ class MemoryManager {
 
       // Begin transaction
       const insertMemory = this.db.prepare(`
-        INSERT INTO memories (id, content, agent_id, created_at, in_universe_date, metadata)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO memories (id, content, conversation_id, created_at, metadata)
+        VALUES (?, ?, ?, ?, ?)
       `);
 
       const insertTag = this.db.prepare(`
@@ -259,9 +249,8 @@ class MemoryManager {
         insertMemory.run(
           memory.id,
           memory.content,
-          memory.agentId,
+          memory.conversationId,
           memory.createdAt.toISOString(),
-          memory.inUniverseDate.toISOString(),
           JSON.stringify(memory.metadata)
         );
 
@@ -304,7 +293,7 @@ class MemoryManager {
 
       // Get memory row
       const memoryRow = await dbGet(`
-        SELECT id, content, agent_id, created_at, in_universe_date, metadata
+        SELECT id, content, conversation_id, created_at, metadata
         FROM memories
         WHERE id = ?
       `, [id]);
@@ -329,9 +318,8 @@ class MemoryManager {
       const memory = new Memory({
         id: memoryRow.id,
         content: memoryRow.content,
-        agentId: memoryRow.agent_id,
+        conversationId: memoryRow.conversation_id,
         createdAt: new Date(memoryRow.created_at),
-        inUniverseDate: new Date(memoryRow.in_universe_date),
         tags,
         keywords,
         relatedTo,
@@ -357,13 +345,11 @@ class MemoryManager {
    * @param {Date} [params.toDate] - Filter by in-universe date (to)
    * @returns {Memory[]} Array of relevant memories
    */
-  async getRelevantMemories({
+async getRelevantMemories({
     query,
-    agentId,
+    conversationId,
     maxCount = 10,
-    tags = [],
-    fromDate,
-    toDate
+    tags = []
   }) {
     try {
       if (!this.initialized) {
@@ -373,21 +359,10 @@ class MemoryManager {
       let whereConditions = [];
       let params = [];
 
-      // Add agent filter if provided
-      if (agentId) {
-        whereConditions.push('m.agent_id = ?');
-        params.push(agentId);
-      }
-
-      // Add date range filters if provided
-      if (fromDate) {
-        whereConditions.push('m.in_universe_date >= ?');
-        params.push(fromDate.toISOString());
-      }
-
-      if (toDate) {
-        whereConditions.push('m.in_universe_date <= ?');
-        params.push(toDate.toISOString());
+      // Add conversation filter if provided
+      if (conversationId) {
+        whereConditions.push('m.conversation_id = ?');
+        params.push(conversationId);
       }
 
       // Construct WHERE clause
@@ -397,7 +372,7 @@ class MemoryManager {
 
       // Query base: get all memories that match the filters
       let sql = `
-        SELECT DISTINCT m.id, m.content, m.agent_id, m.created_at, m.in_universe_date, m.metadata
+        SELECT DISTINCT m.id, m.content, m.conversation_id, m.created_at, m.metadata
         FROM memories m
       `;
 
@@ -510,7 +485,7 @@ class MemoryManager {
    * @param {number} [maxCount=50] - Maximum number of memories to return
    * @returns {Memory[]} Array of matching memories
    */
-  async searchMemoriesByKeyword(keyword, agentId, maxCount = 50) {
+async searchMemoriesByKeyword(keyword, conversationId, maxCount = 50) {
     try {
       if (!this.initialized) {
         await this.initialize();
@@ -519,10 +494,10 @@ class MemoryManager {
       let whereConditions = ['k.keyword = ?'];
       const params = [keyword];
 
-      // Add agent filter if provided
-      if (agentId) {
-        whereConditions.push('m.agent_id = ?');
-        params.push(agentId);
+      // Add conversation filter if provided
+      if (conversationId) {
+        whereConditions.push('m.conversation_id = ?');
+        params.push(conversationId);
       }
 
       // Construct WHERE clause
@@ -530,7 +505,7 @@ class MemoryManager {
 
       // Query to get memories with the specific keyword
       const sql = `
-        SELECT DISTINCT m.id, m.content, m.agent_id, m.created_at, m.in_universe_date, m.metadata
+        SELECT DISTINCT m.id, m.content, m.conversation_id, m.created_at, m.metadata
         FROM memories m
         INNER JOIN memory_keywords k ON m.id = k.memory_id
         ${whereClause}
@@ -563,7 +538,7 @@ class MemoryManager {
    * @param {number} [offset=0] - Offset for pagination
    * @returns {Memory[]} Array of memories
    */
-  async listAllMemories(agentId, limit = 100, offset = 0) {
+async listAllMemories(conversationId, limit = 100, offset = 0) {
     try {
       if (!this.initialized) {
         await this.initialize();
@@ -572,15 +547,15 @@ class MemoryManager {
       let whereClause = '';
       const params = [];
 
-      // Add agent filter if provided
-      if (agentId) {
-        whereClause = 'WHERE agent_id = ?';
-        params.push(agentId);
+      // Add conversation filter if provided
+      if (conversationId) {
+        whereClause = 'WHERE conversation_id = ?';
+        params.push(conversationId);
       }
 
       // Query to get all memories with pagination
       const sql = `
-        SELECT id, content, agent_id, created_at, in_universe_date, metadata
+        SELECT id, content, conversation_id, created_at, metadata
         FROM memories
         ${whereClause}
         ORDER BY created_at DESC
@@ -610,7 +585,7 @@ class MemoryManager {
    * @param {string} [agentId] - Only prune memories for this agent (optional)
    * @returns {number} Number of memories pruned
    */
-  async pruneOldMemories(agentId) {
+async pruneOldMemories(conversationId) {
     try {
       if (!this.initialized) {
         await this.initialize();
@@ -619,13 +594,13 @@ class MemoryManager {
       const retention = config.memory.defaultMemoryRetention;
       const cutoffDate = new Date(Date.now() - retention);
       
-      let whereConditions = ['created_at < ?'];
+      let whereConditions = ['created_at = ?'];
       const params = [cutoffDate.toISOString()];
 
-      // Add agent filter if provided
-      if (agentId) {
-        whereConditions.push('agent_id = ?');
-        params.push(agentId);
+      // Add conversation filter if provided
+      if (conversationId) {
+        whereConditions.push('conversation_id = ?');
+        params.push(conversationId);
       }
 
       // Construct WHERE clause
@@ -704,10 +679,9 @@ class MemoryManager {
         return null;
       }
 
-      // Update memory fields
+// Update memory fields
       if (updates.content) memory.content = updates.content;
-      if (updates.agentId) memory.agentId = updates.agentId;
-      if (updates.inUniverseDate) memory.inUniverseDate = updates.inUniverseDate;
+      if (updates.conversationId) memory.conversationId = updates.conversationId;
       if (updates.tags) memory.tags = updates.tags;
       if (updates.keywords) memory.keywords = updates.keywords;
       if (updates.relatedTo) memory.relatedTo = updates.relatedTo;
@@ -716,7 +690,7 @@ class MemoryManager {
       // Begin transaction
       const updateMemory = this.db.prepare(`
         UPDATE memories
-        SET content = ?, agent_id = ?, in_universe_date = ?, metadata = ?
+        SET content = ?, conversation_id = ?, metadata = ?
         WHERE id = ?
       `);
 
@@ -754,8 +728,7 @@ class MemoryManager {
       this.db.exec("BEGIN TRANSACTION", () => {
         updateMemory.run(
           memory.content,
-          memory.agentId,
-          memory.inUniverseDate.toISOString(),
+          memory.conversationId,
           JSON.stringify(memory.metadata),
           memory.id
         );

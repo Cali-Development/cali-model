@@ -66,7 +66,7 @@ const config = {
   
   // Memory settings
   memory: {
-    maxMemoriesPerAgent: parseInt(process.env.MAX_MEMORIES_PER_AGENT || '1000', 10),
+    maxMemoriesPerConversation: parseInt(process.env.MAX_MEMORIES_PER_CONVERSATION || '500', 10),
     maxGlobalMemories: parseInt(process.env.MAX_GLOBAL_MEMORIES || '10000', 10),
     relevanceThreshold: parseFloat(process.env.RELEVANCE_THRESHOLD || '0.7'),
     defaultMemoryRetention: parseInt(process.env.DEFAULT_MEMORY_RETENTION || '2592000000', 10), // 30 days in ms

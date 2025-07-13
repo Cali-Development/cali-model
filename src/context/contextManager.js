@@ -168,8 +168,8 @@ class ContextManager {
     this.maxSummaryLength = config.context.maxSummaryLength;
     this.cacheTimeout = config.context.cacheTimeout;
     
-    this.messages = []; // All current context messages
-    this.summaries = []; // Summaries generated
+    this.conversations = new Map(); // Map of conversationId to conversation data
+    this.activeConversationId = null; // Currently active conversation
     
     this.groq = new Groq({ apiKey: config.api.groq.apiKey });
     
@@ -184,20 +184,101 @@ class ContextManager {
    */
   async initialize() {
     try {
-      // // Add initial system message if needed
-      // this.addContextMessage({
-      //   content: "The conversation begins. This is a multi-agent AI system with memory and context management.",
-      //   role: 'system'
-      // });
-      
       this.initialized = true;
       console.log("Context Manager initialized");
       
       // Set up cache cleanup interval
-      setInterval(() => this._cleanupCache(), 3000);
+      setInterval(() => this._cleanupCache(), 30000);
     } catch (error) {
       console.error("Failed to initialize Context Manager:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Create or switch to a conversation
+   * @param {string} conversationId - Unique conversation identifier
+   * @param {string[]} [tags] - Tags to categorize the conversation
+   * @param {Object} [metadata] - Additional metadata
+   * @returns {Object} Conversation data
+   */
+  createOrSwitchConversation(conversationId, tags = [], metadata = {}) {
+    if (!this.conversations.has(conversationId)) {
+      this.conversations.set(conversationId, {
+        id: conversationId,
+        messages: [],
+        summaries: [],
+        tags: tags,
+        metadata: metadata,
+        createdAt: new Date(),
+        lastActiveAt: new Date()
+      });
+      console.log(`Created new conversation: ${conversationId}`);
+    } else {
+      // Update last active time
+      this.conversations.get(conversationId).lastActiveAt = new Date();
+      console.log(`Switched to existing conversation: ${conversationId}`);
+    }
+    
+    this.activeConversationId = conversationId;
+    return this.conversations.get(conversationId);
+  }
+
+  /**
+   * Get conversation by ID
+   * @param {string} conversationId - Conversation ID
+   * @returns {Object|null} Conversation data or null if not found
+   */
+  getConversation(conversationId) {
+    return this.conversations.get(conversationId) || null;
+  }
+
+  /**
+   * List all conversations with optional filtering
+   * @param {string[]} [tags] - Filter by tags
+   * @param {number} [limit=50] - Maximum number to return
+   * @returns {Object[]} Array of conversation data
+   */
+  listConversations(tags = [], limit = 50) {
+    let conversations = Array.from(this.conversations.values());
+    
+    // Filter by tags if provided
+    if (tags.length > 0) {
+      conversations = conversations.filter(conv => 
+        tags.some(tag => conv.tags.includes(tag))
+      );
+    }
+    
+    // Sort by last active time (most recent first)
+    conversations.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+    
+    // Limit results
+    return conversations.slice(0, limit);
+  }
+
+  /**
+   * Add tags to a conversation
+   * @param {string} conversationId - Conversation ID
+   * @param {string[]} tags - Tags to add
+   */
+  addConversationTags(conversationId, tags) {
+    const conversation = this.conversations.get(conversationId);
+    if (conversation) {
+      conversation.tags = [...new Set([...conversation.tags, ...tags])];
+      console.log(`Added tags ${tags.join(', ')} to conversation ${conversationId}`);
+    }
+  }
+
+  /**
+   * Remove tags from a conversation
+   * @param {string} conversationId - Conversation ID
+   * @param {string[]} tags - Tags to remove
+   */
+  removeConversationTags(conversationId, tags) {
+    const conversation = this.conversations.get(conversationId);
+    if (conversation) {
+      conversation.tags = conversation.tags.filter(tag => !tags.includes(tag));
+      console.log(`Removed tags ${tags.join(', ')} from conversation ${conversationId}`);
     }
   }
 
@@ -218,7 +299,8 @@ class ContextManager {
     timestamp = new Date(),
     userId = null,
     agentId = null,
-    metadata = {}
+    metadata = {},
+    conversationId = null
   }) {
     try {
       if (!this.initialized) {
@@ -229,6 +311,17 @@ class ContextManager {
         throw new Error('Message content and role are required');
       }
 
+      // Use active conversation if no conversationId provided
+      const targetConversationId = conversationId || this.activeConversationId;
+      if (!targetConversationId) {
+        throw new Error('No active conversation. Please create or switch to a conversation first.');
+      }
+
+      // Ensure conversation exists
+      if (!this.conversations.has(targetConversationId)) {
+        this.createOrSwitchConversation(targetConversationId);
+      }
+
       // Create message instance
       const message = new ContextMessage({
         content,
@@ -236,21 +329,23 @@ class ContextManager {
         timestamp,
         userId,
         agentId,
-        metadata
+        metadata: { ...metadata, conversationId: targetConversationId }
       });
 
-      // Add message to context
-      this.messages.push(message);
+      // Add message to conversation
+      const conversation = this.conversations.get(targetConversationId);
+      conversation.messages.push(message);
+      conversation.lastActiveAt = new Date();
       
       // Check if we need to trigger summarization
-      if (this._shouldSummarize()) {
-        this._queueSummarization();
+      if (this._shouldSummarize(targetConversationId)) {
+        this._queueSummarization(targetConversationId);
       }
       
       // If we exceed the maximum context size, we need to remove old messages
-      this._enforceContextSize();
+      this._enforceContextSize(targetConversationId);
 
-      console.log(`Context message added with ID: ${message.id}`);
+      console.log(`Context message added with ID: ${message.id} to conversation: ${targetConversationId}`);
       return message;
     } catch (error) {
       console.error('Failed to add context message:', error);
@@ -303,15 +398,24 @@ class ContextManager {
   /**
    * Get the full context as an array of messages
    * @param {boolean} [formatted=false] - Whether to return messages in AI model format
+   * @param {string} [conversationId] - Conversation ID (uses active if not provided)
    * @returns {Array} Array of context messages
    */
-  getFullContext(formatted = false) {
+  getFullContext(formatted = false, conversationId = null) {
     try {
+      const targetConversationId = conversationId || this.activeConversationId;
+      if (!targetConversationId || !this.conversations.has(targetConversationId)) {
+        return [];
+      }
+
+      const conversation = this.conversations.get(targetConversationId);
+      const messages = conversation.messages;
+
       // Return the context in the requested format
       if (formatted) {
-        return this.messages.map(msg => msg.toModelFormat());
+        return messages.map(msg => msg.toModelFormat());
       }
-      return [...this.messages];
+      return [...messages];
     } catch (error) {
       console.error('Failed to get full context:', error);
       throw error;
